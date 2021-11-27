@@ -1,0 +1,22 @@
+{
+  "name": "meeting-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start:hot": "concurrently node handlers.js & npm index.html"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "amazon-chime-sdk-js": "^2.11.0",
+    "aws-sdk": "^2.926.0",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "serverless-aws-static-file-handler": "^2.0.10"
+  },
+  "devDependencies": {
+  }
+}

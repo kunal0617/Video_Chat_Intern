@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: Amazon Chime SDK Smart Video Sending Demo
+
+Globals:
+  Function:
+    Runtime: nodejs12.x
+    Timeout: 30
+    MemorySize: 128
+    Environment:
+      Variables:
+        MEETINGS_TABLE_NAME: !Ref Meetings
+        ATTENDEES_TABLE_NAME: !Ref Attendees
+
+        #creating chime resources access policy
+Resources:
+  ChimeMeetingsAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: ChimeMeetingsAccess
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'chime:CreateMeeting'
+              - 'chime:DeleteMeeting'
+              - 'chime:GetMeeting'
+              - 'chime:ListMeetings'
+              - 'chime:BatchCreateAttendee'
+              - 'chime:CreateAttendee'
+              - 'chime:DeleteAttendee'
+              - 'chime:GetAttendee'
+              - 'chime:ListAttendees'
+            Resource: '*'
+      Roles:
+      #which roles will have this policy
+        - Ref: ChimeSdkJoinLambdaRole
+        - Ref: ChimeSdkAttendeeLambdaRole
+        - Ref: ChimeSdkEndLambdaRole
+        
+        #Meetings DDB Table definition and properties
+  Meetings:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "Title"
+          AttributeType: "S"
+        - AttributeName: "Passcode"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: "Title"
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: "Passcode"
+          KeySchema:
+            - AttributeName: "Passcode"
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: "TTL"
+        Enabled: true
+
+        #Attendee DDB Table definition and properties
+  Attendees:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "AttendeeId"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: "AttendeeId"
+          KeyType: HASH
+  
+#index function def
+  ChimeSdkIndexLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+    #calls index() in handler.js
+      Handler: handlers.index
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+          #triggered when sees / path with GET request
+            Path: /{proxy+}
+            Method: GET
+            Auth:
+              Authorizer: null
+
+#Join function def 
+  ChimeSdkJoinLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.join  #invokes join() in handlers.js
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Meetings
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Attendees
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+          #triggered when sees /join path and POST request
+            Path: /join     
+            Method: POST
+
+#end function def
+  ChimeSdkEndLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+    #invokes end() in handlers.js
+      Handler: handlers.end
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Meetings
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+          #triggered when sees /end path and POST request
+            Path: /end
+            Method: POST
+  ChimeSdkAttendeeLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.attendee
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Meetings
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Attendees
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /attendee
+            Method: GET
+
+
+Outputs:
+  ApiURL:
+    Description: "API endpoint URL for Prod environment"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
